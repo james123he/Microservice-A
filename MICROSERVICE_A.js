@@ -42,6 +42,41 @@ function authenticate(req, res, next) {
   }
 }
 
+// GET /getProgressSummary
+app.get('/getProgressSummary', authenticate, async (req, res) => {
+  const { userId } = req.user;
+  try {
+    const summary = await Progress.aggregate([
+      { $match: { userId } },
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+    // Map to structured object
+    const result = summary.reduce((acc, cur) => {
+      acc[cur._id] = cur.count;
+      return acc;
+    }, { pending: 0, completed: 0 });
+
+    return res.json({ userId, summary: result });
+  } catch (err) {
+    console.error('Error retrieving summary:', err);
+    return res.status(500).json({ error: 'Failed to retrieve summary' });
+  }
+});
+
+// DELETE /deleteProgress
+app.delete('/deleteProgress', authenticate, async (req, res) => {
+  const { userId } = req.user;
+  // Audit -- log deletion
+  console.log(`User ${userId} requested progress deletion at ${new Date().toISOString()}`);
+  try {
+    await Progress.deleteMany({ userId });
+    return res.json({ message: 'All progress deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting progress:', err);
+    return res.status(500).json({ error: 'Failed to delete progress' });
+  }
+});
+
 // POST /logProgress
 app.post('/logProgress', authenticate, async (req, res) => {
   const { userId, choreId, status } = req.body;
@@ -60,6 +95,8 @@ app.post('/logProgress', authenticate, async (req, res) => {
   }
 });
 
+//test
+app.get('/test', (req, res) => res.send('OK'));
 
 // Start server
 const PORT = process.env.PORT || 3000;
